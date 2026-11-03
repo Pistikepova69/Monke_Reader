@@ -20,8 +20,8 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/nothings/stb.git
   GIT_TAG master)
 
-project(Image_Reader LANGUAGES C CXX)
-add_executable(Image_Reader)
+project(Monke_Reader LANGUAGES C CXX)
+add_executable(Monke_Reader)
 
 FetchContent_GetProperties(glad)
 if(NOT glad_POPULATED)
@@ -43,14 +43,13 @@ endif()
 
 FetchContent_MakeAvailable(glfw stb)
 
-target_sources(Image_Reader PRIVATE src/main.cpp src/shader.cpp src/texture.cpp
-                                    src/display.cpp)
-target_include_directories(Image_Reader PRIVATE header)
-target_include_directories(Image_Reader PRIVATE header ${stb_SOURCE_DIR})
+target_sources(Monke_Reader PRIVATE src/main.cpp src/shader.cpp src/texture.cpp src/display.cpp src/raw_image.cpp)
+target_include_directories(Monke_Reader PRIVATE header)
+target_include_directories(Monke_Reader PRIVATE header ${stb_SOURCE_DIR})
 find_package(OpenGL REQUIRED)
-target_link_libraries(Image_Reader PRIVATE OpenGL::GL glad glfw)
+target_link_libraries(Monke_Reader PRIVATE OpenGL::GL glad glfw)
 target_compile_definitions(
-  Image_Reader PRIVATE SHADER="${CMAKE_SOURCE_DIR}/shaders/"
+  Monke_Reader PRIVATE SHADER="${CMAKE_SOURCE_DIR}/shaders/"
                        IMAGES="${CMAKE_SOURCE_DIR}/test_images/")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
