@@ -103,6 +103,63 @@ uint32_t RawImage::u32be() {
     return value;
 }
 
+int8_t RawImage::i8() {
+    if(buffer_end - buffer < 1) {
+        // TODO log
+        std::cout << "Not enough bytes\n";
+        std::terminate();
+    }
+    int8_t value = *((int8_t*) buffer);
+    buffer += 1;
+    return value;
+}
+
+int16_t RawImage::i16le() {
+    if(buffer_end - buffer < 2) {
+        // TODO log
+        std::cout << "Not enough bytes\n";
+        std::terminate();
+    }
+    int16_t value = ((int16_t) buffer[0]) | ((int16_t) buffer[1]) << 8;
+    buffer += 2;
+    return value;
+}
+
+int16_t RawImage::i16be() {
+    if(buffer_end - buffer < 2) {
+        // TODO log
+        std::cout << "Not enough bytes\n";
+        std::terminate();
+    }
+    int16_t value = ((int16_t) buffer[0]) << 8 | ((int16_t) buffer[1]);
+    buffer += 2;
+    return value;
+}
+
+int32_t RawImage::i32le() {
+    if(buffer_end - buffer < 4) {
+        // TODO log
+        std::cout << "Not enough bytes\n";
+        std::terminate();
+    }
+    int32_t value = ((int32_t) buffer[0]) | ((int32_t) buffer[1]) << 8 |
+                    ((int32_t) buffer[2]) << 16 | ((int32_t) buffer[3]) << 24;
+    buffer += 4;
+    return value;
+}
+
+int32_t RawImage::i32be() {
+    if(buffer_end - buffer < 4) {
+        // TODO log
+        std::cout << "Not enough bytes\n";
+        std::terminate();
+    }
+    int32_t value = ((int32_t) buffer[0]) << 24 | ((int32_t) buffer[1]) << 16 |
+                    ((int32_t) buffer[2]) << 8 | ((int32_t) buffer[3]);
+    buffer += 4;
+    return value;
+}
+
 void RawImage::skip(size_t count) {
     if(buffer_end - buffer < count) {
         // TODO log
