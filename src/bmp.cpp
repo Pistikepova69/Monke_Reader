@@ -72,7 +72,7 @@ void* read_bmp(const std::string& path, int& width, int& height) {
         std::terminate();
     }
 
-    for(int i = 0; i < height; ++i) {
+    for(int i = height - 1; i >= 0; --i) {
         for(int j = 0; j < width; ++j) {
             uint8_t R, G, B;
             B = buffer.u8();
