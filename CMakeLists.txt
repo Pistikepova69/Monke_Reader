@@ -43,7 +43,9 @@ endif()
 
 FetchContent_MakeAvailable(glfw stb)
 
-target_sources(Monke_Reader PRIVATE src/main.cpp src/shader.cpp src/texture.cpp src/display.cpp src/raw_image.cpp)
+target_sources(
+  Monke_Reader PRIVATE src/main.cpp src/shader.cpp src/texture.cpp
+                       src/display.cpp src/raw_image.cpp src/bmp.cpp)
 target_include_directories(Monke_Reader PRIVATE header)
 target_include_directories(Monke_Reader PRIVATE header ${stb_SOURCE_DIR})
 find_package(OpenGL REQUIRED)
