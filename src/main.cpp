@@ -23,10 +23,15 @@ int main(int argc, char** argv) {
     uint8_t* data = (uint8_t*) read_bmp(image_path, width, height, channels);
     for(int i = 0; i < height; ++i) {
         for(int j = 0; j < width; ++j) {
-            int R = data[(i * width + j) * 3 + 0];
-            int G = data[(i * width + j) * 3 + 1];
-            int B = data[(i * width + j) * 3 + 2];
-            std::print("{:03} {:03} {:03}\t\t", R, G, B);
+            int R = data[(i * width + j) * channels + 0];
+            int G = data[(i * width + j) * channels + 1];
+            int B = data[(i * width + j) * channels + 2];
+            if(channels == 4) {
+                int A = data[(i * width + j) * channels + 3];
+                std::print("{:03} {:03} {:03} {:03}\t\t", R, G, B, A);
+            }
+            else
+                std::print("{:03} {:03} {:03}\t\t", R, G, B);
         }
         std::print("\n");
     }
