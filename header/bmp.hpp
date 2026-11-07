@@ -12,6 +12,7 @@
 #define BI_BITFIELDS 3L
 #define BI_JPEG 4L
 #define BI_PNG 5L
+#define BI_ALPHABITFIELDS 6L
 
 struct BitmapFileHeader {
     uint16_t bfType;       // 'BM'!
@@ -73,6 +74,19 @@ struct BitmapHeader {
     uint32_t bProfileSize;  // irrelevant
     uint32_t bReserved;     // irrelevant (0!)
     void read_header(RawImage& buffer);
+};
+
+struct RGBQuad {
+    uint8_t R, G, B;
+};
+
+struct ColourTable {
+    RGBQuad* data = nullptr;
+    size_t size;
+    void read_table(RawImage& buffer, int colour_count);
+    RGBQuad operator[](size_t i) const;
+    void delete_data();
+    ~ColourTable();
 };
 
 void* read_bmp(const std::string& path, int& width, int& height, int& channels);
