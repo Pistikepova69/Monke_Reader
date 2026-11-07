@@ -76,6 +76,19 @@ struct BitmapHeader {
     void read_header(RawImage& buffer);
 };
 
+struct RGBQuad {
+    uint8_t R, G, B;
+};
+
+struct ColourTable {
+    RGBQuad* data = nullptr;
+    size_t size;
+    void read_table(RawImage& buffer, int colour_count);
+    RGBQuad operator[](size_t i) const;
+    void delete_data();
+    ~ColourTable();
+};
+
 void* read_bmp(const std::string& path, int& width, int& height, int& channels);
 
 #endif

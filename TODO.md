@@ -3,10 +3,10 @@
 ## BMP Reader
 
 - [ ] Negative height
-- [ ] Colour table
-- [ ] 1bpp
-- [ ] 4bpp
-- [ ] 8bpp
+- [x] Colour table
+- [x] 1bpp
+- [x] 4bpp
+- [x] 8bpp
 - [ ] V2, V3 header
 - [ ] Bitfield compression
 - [ ] 16bpp
