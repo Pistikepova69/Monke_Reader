@@ -168,3 +168,7 @@ void RawImage::skip(size_t count) {
     }
     buffer += count;
 }
+
+void RawImage::seek(size_t position) {
+    buffer = data + position < buffer_end ? data + position : buffer;
+}

@@ -28,6 +28,7 @@ struct RawImage {
     uint64_t u64le() = delete;
     uint64_t u64be() = delete;
     void skip(size_t count);
+    void seek(size_t position);
 };
 
 #endif  // INPUT_HPP

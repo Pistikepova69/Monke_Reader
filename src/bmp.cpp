@@ -10,34 +10,98 @@
 
 #include "raw_image.hpp"
 
-void BitmapFileHeader::read_header(RawImage& buffer) {
-    bfType = buffer.u16le();
-    bfSize = buffer.u32le();
-    bfReserved1 = buffer.u16le();
-    bfReserved2 = buffer.u16le();
-    bfOffBits = buffer.u32le();
+#define BI_RGB 0L
+#define BI_RLE8 1L
+#define BI_RLE4 2L
+#define BI_BITFIELDS 3L
+#define BI_JPEG 4L
+#define BI_PNG 5L
+#define BI_ALPHABITFIELDS 6L
+
+struct BitmapFileHeader {
+    uint16_t bfType;       // 'BM'!
+    uint32_t bfSize;       // 14!
+    uint16_t bfReserved1;  // 0!
+    uint16_t bfReserved2;  // 0!
+    uint32_t bfOffBits;    // mostly irrelevant
+
+    void read_header(RawImage& buffer);
+    bool validate_header();
+};
+
+struct BitmapHeader {
+    enum valid_versions : uint8_t {
+        Info = 1,
+        V2 = 2,
+        V3 = 3,
+        V4 = 4,
+        V5 = 5,
+        None = 0
+    };
+
+    valid_versions version = None;
+
+
+    uint32_t biSize = 0;          // 40 or 108 or 124!
+    int32_t biWidth = 0;          // dimesnion of image
+    int32_t biHeight = 0;         // dimesnion of image
+    uint16_t biPlanes = 0;        // 1!
+    uint16_t biBitCount = 0;      // bits per pixel (1, 4, 8, 16, 24, 32)
+    uint32_t biCompression = 0;   // currently only BI_RGB maybe more?
+    uint32_t biSizeImage = 0;     // irrelevant
+    int32_t biXPelsPerMeter = 0;  // irrelevant
+    int32_t biYPelsPerMeter = 0;  // irrelevant
+    uint32_t biClrUsed = 0;       // colour table size
+    uint32_t biClrImportant = 0;  // irrelevant
+    // info header until this point
+    uint32_t bRedMask = 0;
+    // bitmasks to read color data, only if bpp = (16,  32)
+    uint32_t bGreenMask = 0;
+    // bitmasks to read color data, onli if bpp = (16, 32)
+    uint32_t bBlueMask = 0;
+    // bitmasks to read color data, onli if bpp = (16, 32)
+    uint32_t bAlphaMask = 0;
+    // bitmasks to read color data, onli if bpp = (16, 32)
+    uint32_t bCSType = 0;      //  0x73524742 or 0x57696E20
+    uint8_t bEndpoints[36];    // not the real field type, skip, not relevant
+    uint32_t bGammaRed = 0;    // can be ignored
+    uint32_t bGammaGreen = 0;  // can be ignored
+    uint32_t bGammaBlue = 0;   // can be ignored
+    // V4 until this point
+    uint32_t bIntent = 0;       // irrelevant
+    uint32_t bProfileData = 0;  // irrelevant
+    uint32_t bProfileSize = 0;  // irrelevant
+    uint32_t bReserved = 0;     // irrelevant (0!)
+    void read_header(RawImage& buffer);
+};
+
+struct RGBColour {
+    uint8_t R, G, B;
+};
+
+struct ColourTable {
+    RGBColour* data = nullptr;
+    size_t size = 0;
+    void read_table(RawImage& buffer, int colour_count);
+    RGBColour operator[](size_t i) const;
+    void delete_data();
+    ~ColourTable();
+};
+
+void BitmapFileHeader::read_header(RawImage& input_buffer) {
+    bfType = input_buffer.u16le();
+    bfSize = input_buffer.u32le();
+    bfReserved1 = input_buffer.u16le();
+    bfReserved2 = input_buffer.u16le();
+    bfOffBits = input_buffer.u32le();
 }
 
 bool BitmapFileHeader::validate_header() {
     return bfType == 0x4d42 && bfReserved1 == 0 && bfReserved2 == 0;
 }
 
-void BitmapInfoHeader::read_header(RawImage& buffer) {
-    biSize = buffer.u32le();
-    biWidth = buffer.i32le();
-    biHeight = buffer.i32le();
-    biPlanes = buffer.u16le();
-    biBitCount = buffer.u16le();
-    biCompression = buffer.u32le();
-    biSizeImage = buffer.u32le();
-    biXPelsPerMeter = buffer.i32le();
-    biYPelsPerMeter = buffer.i32le();
-    biClrUsed = buffer.u32le();
-    biClrImportant = buffer.u32le();
-}
-
-void BitmapHeader::read_header(RawImage& buffer) {
-    biSize = buffer.u32le();
+void BitmapHeader::read_header(RawImage& input_buffer) {
+    biSize = input_buffer.u32le();
     switch(biSize) {
         case 40:
             version = Info;
@@ -61,53 +125,53 @@ void BitmapHeader::read_header(RawImage& buffer) {
     }
 
 
-    biWidth = buffer.i32le();
-    biHeight = buffer.i32le();
-    biPlanes = buffer.u16le();
-    biBitCount = buffer.u16le();
-    biCompression = buffer.u32le();
-    biSizeImage = buffer.u32le();
-    biXPelsPerMeter = buffer.i32le();
-    biYPelsPerMeter = buffer.i32le();
-    biClrUsed = buffer.u32le();
-    biClrImportant = buffer.u32le();
+    biWidth = input_buffer.i32le();
+    biHeight = input_buffer.i32le();
+    biPlanes = input_buffer.u16le();
+    biBitCount = input_buffer.u16le();
+    biCompression = input_buffer.u32le();
+    biSizeImage = input_buffer.u32le();
+    biXPelsPerMeter = input_buffer.i32le();
+    biYPelsPerMeter = input_buffer.i32le();
+    biClrUsed = input_buffer.u32le();
+    biClrImportant = input_buffer.u32le();
     if(version == Info &&
        (biCompression == BI_BITFIELDS || biCompression == BI_ALPHABITFIELDS)) {
-        bRedMask = buffer.u32le();
-        bGreenMask = buffer.u32le();
-        bBlueMask = buffer.u32le();
+        bRedMask = input_buffer.u32le();
+        bGreenMask = input_buffer.u32le();
+        bBlueMask = input_buffer.u32le();
         if(biCompression == BI_ALPHABITFIELDS) {
-            bAlphaMask = buffer.u32le();
+            bAlphaMask = input_buffer.u32le();
         }
         else {
             bAlphaMask = 0;
         }
     }
     if(version == V2 || version == V3) {
-        bRedMask = buffer.u32le();
-        bGreenMask = buffer.u32le();
-        bBlueMask = buffer.u32le();
+        bRedMask = input_buffer.u32le();
+        bGreenMask = input_buffer.u32le();
+        bBlueMask = input_buffer.u32le();
         if(version == V3) {
-            bAlphaMask = buffer.u32le();
+            bAlphaMask = input_buffer.u32le();
         }
     }
 
     else if(version != Info) {
-        bRedMask = buffer.u32le();
-        bGreenMask = buffer.u32le();
-        bBlueMask = buffer.u32le();
-        bAlphaMask = buffer.u32le();
-        bCSType = buffer.u32le();
-        buffer.skip(36);
-        bGammaRed = buffer.u32le();
-        bGammaGreen = buffer.u32le();
-        bGammaBlue = buffer.u32le();
+        bRedMask = input_buffer.u32le();
+        bGreenMask = input_buffer.u32le();
+        bBlueMask = input_buffer.u32le();
+        bAlphaMask = input_buffer.u32le();
+        bCSType = input_buffer.u32le();
+        input_buffer.skip(36);
+        bGammaRed = input_buffer.u32le();
+        bGammaGreen = input_buffer.u32le();
+        bGammaBlue = input_buffer.u32le();
     }
     if(version == V5) {
-        bIntent = buffer.u32le();
-        bProfileData = buffer.u32le();
-        bProfileSize = buffer.u32le();
-        bReserved = buffer.u32le();
+        bIntent = input_buffer.u32le();
+        bProfileData = input_buffer.u32le();
+        bProfileSize = input_buffer.u32le();
+        bReserved = input_buffer.u32le();
     }
     if((biBitCount == 16 || biBitCount == 32) &&
        (biCompression != BI_ALPHABITFIELDS && biCompression != BI_BITFIELDS)) {
@@ -123,23 +187,30 @@ void BitmapHeader::read_header(RawImage& buffer) {
         }
         bAlphaMask = 0;
     }
+    if(biBitCount != 16 && biBitCount != 32) bAlphaMask = 0;
+    if(biBitCount < 16 && biClrUsed == 0) {
+        biClrUsed = 1 << biBitCount;
+    }
 }
 
-void ColourTable::read_table(RawImage& buffer, int colour_count) {
+void ColourTable::read_table(RawImage& input_buffer, int colour_count) {
+    if(colour_count == 0) {
+        return;
+    }
     if(data) {
         delete_data();
     }
-    data = (RGBQuad*) malloc(sizeof(RGBQuad) * colour_count);
+    data = (RGBColour*) malloc(sizeof(RGBColour) * colour_count);
     size = colour_count;
     if(!data) {
         std::cerr << "Allocation error\n";
         std::terminate();
     }
     for(int i = 0; i < colour_count; ++i) {
-        data[i].B = buffer.u8();
-        data[i].G = buffer.u8();
-        data[i].R = buffer.u8();
-        buffer.skip(1);
+        data[i].B = input_buffer.u8();
+        data[i].G = input_buffer.u8();
+        data[i].R = input_buffer.u8();
+        input_buffer.skip(1);
     }
 }
 
@@ -150,7 +221,7 @@ void ColourTable::delete_data() {
 
 ColourTable::~ColourTable() { delete_data(); }
 
-RGBQuad ColourTable::operator[](size_t i) const {
+RGBColour ColourTable::operator[](size_t i) const {
     if(i < size) {
         return data[i];
     }
@@ -160,11 +231,11 @@ RGBQuad ColourTable::operator[](size_t i) const {
     }
 }
 
-uint8_t normalise_to_u8(uint32_t value, uint32_t max_value) {
+static uint8_t normalise_to_u8(uint32_t value, uint32_t max_value) {
     return (255 * value) / max_value;
 }
 
-int bitfield_shift_value(uint32_t bitfield) {
+static int bitfield_shift_value(uint32_t bitfield) {
     for(int i = 0; i < 32; ++i) {
         if(bitfield & (1 << i)) {
             return i;
@@ -173,86 +244,91 @@ int bitfield_shift_value(uint32_t bitfield) {
     return 65;  // to zero out shifted value
 }
 
-void read_4bpp_pixel_data(int width, int height, RawImage& buffer,
-                          uint8_t* colour_data, const ColourTable& colours,
-                          int stride) {
+static void read_4bpp_pixel_data(int width, int height, RawImage& input_buffer,
+                                 uint8_t* output_buffer,
+                                 const ColourTable& colours, int stride) {
     for(int i = height - 1; i >= 0; --i) {
         int j = 0;
         while(j < stride * 8) {
-            uint8_t byte = buffer.u8();
+            uint8_t byte = input_buffer.u8();
             if(j < width * 4) {
                 int index = (byte & 0xF0) >> 4;
-                colour_data[(i * width + j / 4) * 3 + 0] = colours[index].R;
-                colour_data[(i * width + j / 4) * 3 + 1] = colours[index].G;
-                colour_data[(i * width + j / 4) * 3 + 2] = colours[index].B;
+                output_buffer[(i * width + j / 4) * 3 + 0] = colours[index].R;
+                output_buffer[(i * width + j / 4) * 3 + 1] = colours[index].G;
+                output_buffer[(i * width + j / 4) * 3 + 2] = colours[index].B;
             }
             j += 4;
             if(j < width * 4) {
                 int index = byte & 0xF;
-                colour_data[(i * width + j / 4) * 3 + 0] = colours[index].R;
-                colour_data[(i * width + j / 4) * 3 + 1] = colours[index].G;
-                colour_data[(i * width + j / 4) * 3 + 2] = colours[index].B;
+                output_buffer[(i * width + j / 4) * 3 + 0] = colours[index].R;
+                output_buffer[(i * width + j / 4) * 3 + 1] = colours[index].G;
+                output_buffer[(i * width + j / 4) * 3 + 2] = colours[index].B;
             }
             j += 4;
         }
     }
 }
 
-void read_1bpp_pixel_data(int width, int height, RawImage& buffer,
-                          uint8_t* colour_data, const ColourTable& colours,
-                          int stride) {
+static void read_1bpp_pixel_data(int width, int height, RawImage& input_buffer,
+                                 uint8_t* output_buffer,
+                                 const ColourTable& colours, int stride) {
     for(int i = height - 1; i >= 0; --i) {
         int j = 0;
         while(j < stride * 8) {
-            uint8_t byte = buffer.u8();
+            uint8_t byte = input_buffer.u8();
             for(int k = 0; k + j < width && k < 8; ++k) {
                 int index = ((byte >> (7 - k)) & 0x1);
-                colour_data[(i * width + j / 8 + k) * 3 + 0] = colours[index].R;
-                colour_data[(i * width + j / 8 + k) * 3 + 1] = colours[index].G;
-                colour_data[(i * width + j / 8 + k) * 3 + 2] = colours[index].B;
+                output_buffer[(i * width + j + k) * 3 + 0] = colours[index].R;
+                output_buffer[(i * width + j + k) * 3 + 1] = colours[index].G;
+                output_buffer[(i * width + j + k) * 3 + 2] = colours[index].B;
             }
             j += 8;
         }
     }
 }
 
-void read_8bpp_pixel_data(int width, int height, RawImage& buffer,
-                          uint8_t* colour_data, const ColourTable& colours,
-                          int stride) {
+static void read_8bpp_pixel_data(int width, int height, RawImage& input_buffer,
+                                 uint8_t* output_buffer,
+                                 const ColourTable& colours, int stride) {
     int padding_size = stride - width;
     for(int i = height - 1; i >= 0; --i) {
         for(int j = 0; j < width; ++j) {
-            uint8_t index = buffer.u8();
-            colour_data[(i * width + j) * 3 + 0] = colours[index].R;
-            colour_data[(i * width + j) * 3 + 1] = colours[index].G;
-            colour_data[(i * width + j) * 3 + 2] = colours[index].B;
+            uint8_t index = input_buffer.u8();
+            output_buffer[(i * width + j) * 3 + 0] = colours[index].R;
+            output_buffer[(i * width + j) * 3 + 1] = colours[index].G;
+            output_buffer[(i * width + j) * 3 + 2] = colours[index].B;
         }
-        buffer.skip(padding_size);
+        input_buffer.skip(padding_size);
     }
 }
 
-void read_24bpp_pixel_data(int width, int height, RawImage& buffer,
-                           uint8_t* colour_data, int stride) {
+static void read_24bpp_pixel_data(int width, int height, RawImage& input_buffer,
+                                  uint8_t* output_buffer, int stride) {
     int padding_size = stride - width * 3;
     for(int i = height - 1; i >= 0; --i) {
         for(int j = 0; j < width; ++j) {
             uint8_t R, G, B;
-            B = buffer.u8();
-            G = buffer.u8();
-            R = buffer.u8();
-            colour_data[(i * width + j) * 3 + 0] = R;
-            colour_data[(i * width + j) * 3 + 1] = G;
-            colour_data[(i * width + j) * 3 + 2] = B;
+            B = input_buffer.u8();
+            G = input_buffer.u8();
+            R = input_buffer.u8();
+            output_buffer[(i * width + j) * 3 + 0] = R;
+            output_buffer[(i * width + j) * 3 + 1] = G;
+            output_buffer[(i * width + j) * 3 + 2] = B;
         }
-        buffer.skip(padding_size);
+        input_buffer.skip(padding_size);
     }
 }
 
-void read_16bpp_pixel_data(int width, int height, RawImage& buffer,
-                           uint8_t* colour_data, int stride, uint32_t red_mask,
-                           uint32_t green_mask, uint32_t blue_mask,
-                           uint32_t alpha_mask, int channels) {
-    int padding_size = stride - width * 2;
+static void read_bitfield_data(int width, int height, RawImage& input_buffer,
+                               uint8_t* output_buffer, int stride,
+                               uint32_t red_mask, uint32_t green_mask,
+                               uint32_t blue_mask, uint32_t alpha_mask,
+                               int channels, int bpp) {
+    if(bpp != 32 && bpp != 16) {
+        std::cerr << "Only 16 and 32 bpp are valid bitmap sizes\n";
+        std::terminate();
+    }
+    int padding_size = stride - width * (bpp == 16 ? 2 : 4);
     uint32_t red_max = (1 << std::popcount(red_mask)) - 1;
     uint32_t green_max = (1 << std::popcount(green_mask)) - 1;
     uint32_t blue_max = (1 << std::popcount(blue_mask)) - 1;
@@ -265,69 +341,52 @@ void read_16bpp_pixel_data(int width, int height, RawImage& buffer,
 
     for(int i = height - 1; i >= 0; --i) {
         for(int j = 0; j < width; ++j) {
-            uint32_t pixel = buffer.u16le();
+            uint32_t pixel =
+                bpp == 16 ? input_buffer.u16le() : input_buffer.u32le();
             uint32_t red_value = (pixel & red_mask) >> red_field_shift;
             uint32_t green_value = (pixel & green_mask) >> green_field_shift;
             uint32_t blue_value = (pixel & blue_mask) >> blue_field_shift;
             uint32_t alpha_value = (pixel & alpha_mask) >> alpha_field_shift;
 
-            colour_data[(i * width + j) * channels + 0] =
+            output_buffer[(i * width + j) * channels + 0] =
                 normalise_to_u8(red_value, red_max);
-            colour_data[(i * width + j) * channels + 1] =
+            output_buffer[(i * width + j) * channels + 1] =
                 normalise_to_u8(green_value, green_max);
-            colour_data[(i * width + j) * channels + 2] =
+            output_buffer[(i * width + j) * channels + 2] =
                 normalise_to_u8(blue_value, blue_max);
             if(alpha_mask) {
-                colour_data[(i * width + j) * channels + 3] =
+                output_buffer[(i * width + j) * channels + 3] =
                     normalise_to_u8(alpha_value, alpha_max);
             }
         }
-        buffer.skip(padding_size);
+        input_buffer.skip(padding_size);
     }
 }
 
-void read_32bpp_pixel_data(int width, int height, RawImage& buffer,
-                           uint8_t* colour_data, int stride, uint32_t red_mask,
-                           uint32_t green_mask, uint32_t blue_mask,
-                           uint32_t alpha_mask, int channels) {
-    int padding_size = stride - width * 4;
-    uint32_t red_max = (1 << std::popcount(red_mask)) - 1;
-    uint32_t green_max = (1 << std::popcount(green_mask)) - 1;
-    uint32_t blue_max = (1 << std::popcount(blue_mask)) - 1;
-    uint32_t alpha_max = (1 << std::popcount(alpha_mask)) - 1;
-    int red_field_shift = bitfield_shift_value(red_mask);
-    int green_field_shift = bitfield_shift_value(green_mask);
-    int blue_field_shift = bitfield_shift_value(blue_mask);
-    int alpha_field_shift = bitfield_shift_value(alpha_mask);
+static void read_16bpp_pixel_data(int width, int height, RawImage& input_buffer,
+                                  uint8_t* output_buffer, int stride,
+                                  uint32_t red_mask, uint32_t green_mask,
+                                  uint32_t blue_mask, uint32_t alpha_mask,
+                                  int channels) {
+    read_bitfield_data(width, height, input_buffer, output_buffer, stride,
+                       red_mask, green_mask, blue_mask, alpha_mask, channels,
+                       16);
+}
 
-
-    for(int i = height - 1; i >= 0; --i) {
-        for(int j = 0; j < width; ++j) {
-            uint32_t pixel = buffer.u32le();
-            uint32_t red_value = (pixel & red_mask) >> red_field_shift;
-            uint32_t green_value = (pixel & green_mask) >> green_field_shift;
-            uint32_t blue_value = (pixel & blue_mask) >> blue_field_shift;
-            uint32_t alpha_value = (pixel & alpha_mask) >> alpha_field_shift;
-
-            colour_data[(i * width + j) * channels + 0] =
-                normalise_to_u8(red_value, red_max);
-            colour_data[(i * width + j) * channels + 1] =
-                normalise_to_u8(green_value, green_max);
-            colour_data[(i * width + j) * channels + 2] =
-                normalise_to_u8(blue_value, blue_max);
-            if(alpha_mask) {
-                colour_data[(i * width + j) * channels + 3] =
-                    normalise_to_u8(alpha_value, alpha_max);
-            }
-        }
-        buffer.skip(padding_size);
-    }
+static void read_32bpp_pixel_data(int width, int height, RawImage& input_buffer,
+                                  uint8_t* output_buffer, int stride,
+                                  uint32_t red_mask, uint32_t green_mask,
+                                  uint32_t blue_mask, uint32_t alpha_mask,
+                                  int channels) {
+    read_bitfield_data(width, height, input_buffer, output_buffer, stride,
+                       red_mask, green_mask, blue_mask, alpha_mask, channels,
+                       32);
 }
 
 void* read_bmp(const std::string& path, int& width, int& height,
                int& channels) {
     RawImage buffer(path);
-    uint8_t* colour_data = nullptr;
+    uint8_t* output_buffer = nullptr;
     BitmapFileHeader file_header;
     BitmapHeader bitmap_header;
     file_header.read_header(buffer);
@@ -346,9 +405,7 @@ void* read_bmp(const std::string& path, int& width, int& height,
 
     ColourTable colours;
     colours.read_table(buffer, bitmap_header.biClrUsed);
-
-    assert(buffer.buffer == buffer.data + file_header.bfOffBits &&
-           "Reading pixel data from wrong place\n");
+    buffer.seek(file_header.bfOffBits);
 
 
 
@@ -365,35 +422,35 @@ void* read_bmp(const std::string& path, int& width, int& height,
     // only needs to be passed there
     channels = alpha_mask ? 4 : 3;
 
-    colour_data = (uint8_t*) malloc((size_t) width * height * channels);
-    if(colour_data == nullptr) {
+    output_buffer = (uint8_t*) malloc((size_t) width * height * channels);
+    if(output_buffer == nullptr) {
         std::cerr << "Memory allocation failed\n";
         std::terminate();
     }
 
     switch(bitmap_header.biBitCount) {
         case 1:
-            read_1bpp_pixel_data(width, height, buffer, colour_data, colours,
+            read_1bpp_pixel_data(width, height, buffer, output_buffer, colours,
                                  stride);
             break;
         case 4:
-            read_4bpp_pixel_data(width, height, buffer, colour_data, colours,
+            read_4bpp_pixel_data(width, height, buffer, output_buffer, colours,
                                  stride);
             break;
         case 8:
-            read_8bpp_pixel_data(width, height, buffer, colour_data, colours,
+            read_8bpp_pixel_data(width, height, buffer, output_buffer, colours,
                                  stride);
             break;
         case 16:
-            read_16bpp_pixel_data(width, height, buffer, colour_data, stride,
+            read_16bpp_pixel_data(width, height, buffer, output_buffer, stride,
                                   red_mask, green_mask, blue_mask, alpha_mask,
                                   channels);
             break;
         case 24:
-            read_24bpp_pixel_data(width, height, buffer, colour_data, stride);
+            read_24bpp_pixel_data(width, height, buffer, output_buffer, stride);
             break;
         case 32:
-            read_32bpp_pixel_data(width, height, buffer, colour_data, stride,
+            read_32bpp_pixel_data(width, height, buffer, output_buffer, stride,
                                   red_mask, green_mask, blue_mask, alpha_mask,
                                   channels);
             break;
@@ -403,5 +460,5 @@ void* read_bmp(const std::string& path, int& width, int& height,
             break;
     }
 
-    return colour_data;
+    return output_buffer;
 }
