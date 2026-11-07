@@ -64,6 +64,15 @@ void BitmapHeader::read_header(RawImage& buffer) {
     biYPelsPerMeter = buffer.i32le();
     biClrUsed = buffer.u32le();
     biClrImportant = buffer.u32le();
+    if(version == Info &&
+       (biCompression == BI_BITFIELDS || biCompression == BI_ALPHABITFIELDS)) {
+        bRedMask = buffer.u32le();
+        bGreenMask = buffer.u32le();
+        bBlueMask = buffer.u32le();
+        if(biCompression == BI_ALPHABITFIELDS) {
+            bAlphaMask = buffer.u32le();
+        }
+    }
 
     if(version != Info) {
         bRedMask = buffer.u32le();
@@ -82,11 +91,25 @@ void BitmapHeader::read_header(RawImage& buffer) {
         bProfileSize = buffer.u32le();
         bReserved = buffer.u32le();
     }
+    if((biBitCount == 16 || biBitCount == 32) &&
+       (biCompression != BI_ALPHABITFIELDS && biCompression != BI_BITFIELDS)) {
+        if(biBitCount == 16) {
+            bRedMask = 0x7C00;
+            bGreenMask = 0x03E0;
+            bBlueMask = 0x001F;
+        }
+        else {
+            bRedMask = 0x00'FF'00'00;
+            bGreenMask = 0x00'00'FF'00;
+            bBlueMask = 0x00'00'00'FF;
+        }
+        bAlphaMask = 0;
+    }
 }
 
 void* read_bmp(const std::string& path, int& width, int& height,
                int& channels) {
-    channels = 3;
+    channels = 3; // 4 if BI_ALPHABITFIELDS
 
     RawImage buffer(path);
     uint8_t* color_data = nullptr;

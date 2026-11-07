@@ -12,6 +12,7 @@
 #define BI_BITFIELDS 3L
 #define BI_JPEG 4L
 #define BI_PNG 5L
+#define BI_ALPHABITFIELDS 6L
 
 struct BitmapFileHeader {
     uint16_t bfType;       // 'BM'!
