@@ -1,4 +1,5 @@
 #include <iostream>
+#include "bmp.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -36,8 +37,8 @@ void texture2D::load(const std::string& path) {
     unload();
 
     int channels = 0;
-    unsigned char* image =
-        stbi_load(path.c_str(), &width, &height, &channels, 0);
+    unsigned char* image = (unsigned char *) read_bmp(path, width, height, channels);
+        //stbi_load(path.c_str(), &width, &height, &channels, 0);
     if(!image) {
         std::cerr << "Cannot open image: " + path + "\n";
         std::terminate();

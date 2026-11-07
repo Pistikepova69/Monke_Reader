@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
                   << " <image file name inside test_images/>\n";
         return 1;
     }
-    const std::string image_path = std::string(+argv[1]);
+    const std::string image_path = std::string(argv[1]);
 
 
     // Window must be declared first: it is destroyed last, so every
