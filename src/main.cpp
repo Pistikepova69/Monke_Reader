@@ -17,10 +17,10 @@ int main(int argc, char** argv) {
                   << " <image file name inside test_images/>\n";
         return 1;
     }
-    const std::string image_path = std::string(IMAGES) + argv[1];
+    const std::string image_path = argv[1];
 
-    int width, height;
-    uint8_t* data = (uint8_t*) read_bmp(image_path, width, height);
+    int width, height, channels;
+    uint8_t* data = (uint8_t*) read_bmp(image_path, width, height, channels);
     for(int i = 0; i < height; ++i) {
         for(int j = 0; j < width; ++j) {
             int R = data[(i * width + j) * 3 + 0];
