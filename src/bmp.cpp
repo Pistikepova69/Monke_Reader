@@ -77,8 +77,10 @@ void BitmapHeader::read_header(RawImage& buffer) {
         bGreenMask = buffer.u32le();
         bBlueMask = buffer.u32le();
         if(biCompression == BI_ALPHABITFIELDS) {
-            bAlphaMask = buffer.u32le();  // BI_BITFIELDS-el is működjön, de
-                                          // V2-t ellenőrizni kell
+            bAlphaMask = buffer.u32le();
+        }
+        else {
+            bAlphaMask = 0;
         }
     }
     if(version == V2 || version == V3) {
@@ -159,7 +161,7 @@ RGBQuad ColourTable::operator[](size_t i) const {
 }
 
 uint8_t normalise_to_u8(uint32_t value, uint32_t max_value) {
-    return value / max_value * 255;
+    return (255 * value) / max_value;
 }
 
 int bitfield_shift_value(uint32_t bitfield) {
@@ -168,7 +170,7 @@ int bitfield_shift_value(uint32_t bitfield) {
             return i;
         }
     }
-    return -1;
+    return 65;  // to zero out shifted value
 }
 
 void read_4bpp_pixel_data(int width, int height, RawImage& buffer,
@@ -248,26 +250,37 @@ void read_24bpp_pixel_data(int width, int height, RawImage& buffer,
 
 void read_16bpp_pixel_data(int width, int height, RawImage& buffer,
                            uint8_t* colour_data, int stride, uint32_t red_mask,
-                           uint32_t green_mask, uint32_t blue_mask) {
+                           uint32_t green_mask, uint32_t blue_mask,
+                           uint32_t alpha_mask, int channels) {
     int padding_size = stride - width * 2;
     uint32_t red_max = (1 << std::popcount(red_mask)) - 1;
     uint32_t green_max = (1 << std::popcount(green_mask)) - 1;
     uint32_t blue_max = (1 << std::popcount(blue_mask)) - 1;
+    uint32_t alpha_max = (1 << std::popcount(alpha_mask)) - 1;
     int red_field_shift = bitfield_shift_value(red_mask);
     int green_field_shift = bitfield_shift_value(green_mask);
     int blue_field_shift = bitfield_shift_value(blue_mask);
+    int alpha_field_shift = bitfield_shift_value(alpha_mask);
+
+
     for(int i = height - 1; i >= 0; --i) {
         for(int j = 0; j < width; ++j) {
             uint32_t pixel = buffer.u16le();
             uint32_t red_value = (pixel & red_mask) >> red_field_shift;
             uint32_t green_value = (pixel & green_mask) >> green_field_shift;
             uint32_t blue_value = (pixel & blue_mask) >> blue_field_shift;
-            colour_data[(i * width + j) * 3 + 0] =
+            uint32_t alpha_value = (pixel & alpha_mask) >> alpha_field_shift;
+
+            colour_data[(i * width + j) * channels + 0] =
                 normalise_to_u8(red_value, red_max);
-            colour_data[(i * width + j) * 3 + 1] =
+            colour_data[(i * width + j) * channels + 1] =
                 normalise_to_u8(green_value, green_max);
-            colour_data[(i * width + j) * 3 + 2] =
+            colour_data[(i * width + j) * channels + 2] =
                 normalise_to_u8(blue_value, blue_max);
+            if(alpha_mask) {
+                colour_data[(i * width + j) * channels + 3] =
+                    normalise_to_u8(alpha_value, alpha_max);
+            }
         }
         buffer.skip(padding_size);
     }
@@ -275,26 +288,37 @@ void read_16bpp_pixel_data(int width, int height, RawImage& buffer,
 
 void read_32bpp_pixel_data(int width, int height, RawImage& buffer,
                            uint8_t* colour_data, int stride, uint32_t red_mask,
-                           uint32_t green_mask, uint32_t blue_mask) {
+                           uint32_t green_mask, uint32_t blue_mask,
+                           uint32_t alpha_mask, int channels) {
     int padding_size = stride - width * 4;
     uint32_t red_max = (1 << std::popcount(red_mask)) - 1;
     uint32_t green_max = (1 << std::popcount(green_mask)) - 1;
     uint32_t blue_max = (1 << std::popcount(blue_mask)) - 1;
+    uint32_t alpha_max = (1 << std::popcount(alpha_mask)) - 1;
     int red_field_shift = bitfield_shift_value(red_mask);
     int green_field_shift = bitfield_shift_value(green_mask);
     int blue_field_shift = bitfield_shift_value(blue_mask);
+    int alpha_field_shift = bitfield_shift_value(alpha_mask);
+
+
     for(int i = height - 1; i >= 0; --i) {
         for(int j = 0; j < width; ++j) {
             uint32_t pixel = buffer.u32le();
             uint32_t red_value = (pixel & red_mask) >> red_field_shift;
             uint32_t green_value = (pixel & green_mask) >> green_field_shift;
             uint32_t blue_value = (pixel & blue_mask) >> blue_field_shift;
-            colour_data[(i * width + j) * 3 + 0] =
+            uint32_t alpha_value = (pixel & alpha_mask) >> alpha_field_shift;
+
+            colour_data[(i * width + j) * channels + 0] =
                 normalise_to_u8(red_value, red_max);
-            colour_data[(i * width + j) * 3 + 1] =
+            colour_data[(i * width + j) * channels + 1] =
                 normalise_to_u8(green_value, green_max);
-            colour_data[(i * width + j) * 3 + 2] =
+            colour_data[(i * width + j) * channels + 2] =
                 normalise_to_u8(blue_value, blue_max);
+            if(alpha_mask) {
+                colour_data[(i * width + j) * channels + 3] =
+                    normalise_to_u8(alpha_value, alpha_max);
+            }
         }
         buffer.skip(padding_size);
     }
@@ -302,8 +326,6 @@ void read_32bpp_pixel_data(int width, int height, RawImage& buffer,
 
 void* read_bmp(const std::string& path, int& width, int& height,
                int& channels) {
-    channels = 3;  // 4 if BI_ALPHABITFIELDS
-
     RawImage buffer(path);
     uint8_t* colour_data = nullptr;
     BitmapFileHeader file_header;
@@ -339,7 +361,11 @@ void* read_bmp(const std::string& path, int& width, int& height,
     uint32_t blue_mask = bitmap_header.bBlueMask;
     uint32_t alpha_mask = bitmap_header.bAlphaMask;
 
-    colour_data = (uint8_t*) malloc((size_t) width * height * 3);
+    // not 3 only in 32 or 16 bpp alpha channel images,
+    // only needs to be passed there
+    channels = alpha_mask ? 4 : 3;
+
+    colour_data = (uint8_t*) malloc((size_t) width * height * channels);
     if(colour_data == nullptr) {
         std::cerr << "Memory allocation failed\n";
         std::terminate();
@@ -358,16 +384,18 @@ void* read_bmp(const std::string& path, int& width, int& height,
             read_8bpp_pixel_data(width, height, buffer, colour_data, colours,
                                  stride);
             break;
-        case 16: {
+        case 16:
             read_16bpp_pixel_data(width, height, buffer, colour_data, stride,
-                                  red_mask, green_mask, blue_mask);
-        } break;
+                                  red_mask, green_mask, blue_mask, alpha_mask,
+                                  channels);
+            break;
         case 24:
             read_24bpp_pixel_data(width, height, buffer, colour_data, stride);
             break;
         case 32:
             read_32bpp_pixel_data(width, height, buffer, colour_data, stride,
-                                  red_mask, green_mask, blue_mask);
+                                  red_mask, green_mask, blue_mask, alpha_mask,
+                                  channels);
             break;
         default:
             std::cerr << "Invalid bitCount\n";
