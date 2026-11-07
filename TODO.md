@@ -7,9 +7,9 @@
 - [x] 1bpp
 - [x] 4bpp
 - [x] 8bpp
-- [ ] V2, V3 header
+- [x] V2, V3 header
 - [ ] Bitfield compression
-- [ ] 16bpp
+- [x] 16bpp
 - [ ] 32bpp (no 8+bitfield)
 - [ ] 8+bitfields
 - [ ] Alpha

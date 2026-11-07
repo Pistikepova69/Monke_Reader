@@ -42,6 +42,12 @@ void BitmapHeader::read_header(RawImage& buffer) {
         case 40:
             version = Info;
             break;
+        case 52:
+            version = V2;
+            break;
+        case 56:
+            version = V3;
+            break;
         case 108:
             version = V4;
             break;
@@ -75,8 +81,16 @@ void BitmapHeader::read_header(RawImage& buffer) {
                                           // V2-t ellenőrizni kell
         }
     }
+    if(version == V2 || version == V3) {
+        bRedMask = buffer.u32le();
+        bGreenMask = buffer.u32le();
+        bBlueMask = buffer.u32le();
+        if(version == V3) {
+            bAlphaMask = buffer.u32le();
+        }
+    }
 
-    if(version != Info) {
+    else if(version != Info) {
         bRedMask = buffer.u32le();
         bGreenMask = buffer.u32le();
         bBlueMask = buffer.u32le();
@@ -232,9 +246,9 @@ void read_24bpp_pixel_data(int width, int height, RawImage& buffer,
     }
 }
 
-void read_16bpp_pixel_data(int width, int height, RawImage& buffer, uint8_t* colour_data,
-               int stride, uint32_t red_mask, uint32_t green_mask,
-               uint32_t blue_mask) {
+void read_16bpp_pixel_data(int width, int height, RawImage& buffer,
+                           uint8_t* colour_data, int stride, uint32_t red_mask,
+                           uint32_t green_mask, uint32_t blue_mask) {
     int padding_size = stride - width * 2;
     uint32_t red_max = (1 << std::popcount(red_mask)) - 1;
     uint32_t green_max = (1 << std::popcount(green_mask)) - 1;
@@ -318,8 +332,8 @@ void* read_bmp(const std::string& path, int& width, int& height,
                                  stride);
             break;
         case 16: {
-            read_16bpp_pixel_data(width, height, buffer, colour_data, stride, red_mask,
-                      green_mask, blue_mask);
+            read_16bpp_pixel_data(width, height, buffer, colour_data, stride,
+                                  red_mask, green_mask, blue_mask);
         } break;
         case 24:
             read_24bpp_pixel_data(width, height, buffer, colour_data, stride);
