@@ -1,5 +1,6 @@
 #include "bmp.hpp"
 
+#include <bit>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -143,8 +144,21 @@ RGBQuad ColourTable::operator[](size_t i) const {
     }
 }
 
+uint8_t normalise_to_u8(uint32_t value, uint32_t max_value) {
+    return value / max_value * 255;
+}
+
+int bitfield_shift_value(uint32_t bitfield) {
+    for(int i = 0; i < 32; ++i) {
+        if(bitfield & (1 << i)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 void read_4bpp_pixel_data(int width, int height, RawImage& buffer,
-                          uint8_t* color_data, const ColourTable& colours,
+                          uint8_t* colour_data, const ColourTable& colours,
                           int stride) {
     for(int i = height - 1; i >= 0; --i) {
         int j = 0;
@@ -152,16 +166,16 @@ void read_4bpp_pixel_data(int width, int height, RawImage& buffer,
             uint8_t byte = buffer.u8();
             if(j < width * 4) {
                 int index = (byte & 0xF0) >> 4;
-                color_data[(i * width + j / 4) * 3 + 0] = colours[index].R;
-                color_data[(i * width + j / 4) * 3 + 1] = colours[index].G;
-                color_data[(i * width + j / 4) * 3 + 2] = colours[index].B;
+                colour_data[(i * width + j / 4) * 3 + 0] = colours[index].R;
+                colour_data[(i * width + j / 4) * 3 + 1] = colours[index].G;
+                colour_data[(i * width + j / 4) * 3 + 2] = colours[index].B;
             }
             j += 4;
             if(j < width * 4) {
                 int index = byte & 0xF;
-                color_data[(i * width + j / 4) * 3 + 0] = colours[index].R;
-                color_data[(i * width + j / 4) * 3 + 1] = colours[index].G;
-                color_data[(i * width + j / 4) * 3 + 2] = colours[index].B;
+                colour_data[(i * width + j / 4) * 3 + 0] = colours[index].R;
+                colour_data[(i * width + j / 4) * 3 + 1] = colours[index].G;
+                colour_data[(i * width + j / 4) * 3 + 2] = colours[index].B;
             }
             j += 4;
         }
@@ -169,7 +183,7 @@ void read_4bpp_pixel_data(int width, int height, RawImage& buffer,
 }
 
 void read_1bpp_pixel_data(int width, int height, RawImage& buffer,
-                          uint8_t* color_data, const ColourTable& colours,
+                          uint8_t* colour_data, const ColourTable& colours,
                           int stride) {
     for(int i = height - 1; i >= 0; --i) {
         int j = 0;
@@ -177,9 +191,9 @@ void read_1bpp_pixel_data(int width, int height, RawImage& buffer,
             uint8_t byte = buffer.u8();
             for(int k = 0; k + j < width && k < 8; ++k) {
                 int index = ((byte >> (7 - k)) & 0x1);
-                color_data[(i * width + j / 8 + k) * 3 + 0] = colours[index].R;
-                color_data[(i * width + j / 8 + k) * 3 + 1] = colours[index].G;
-                color_data[(i * width + j / 8 + k) * 3 + 2] = colours[index].B;
+                colour_data[(i * width + j / 8 + k) * 3 + 0] = colours[index].R;
+                colour_data[(i * width + j / 8 + k) * 3 + 1] = colours[index].G;
+                colour_data[(i * width + j / 8 + k) * 3 + 2] = colours[index].B;
             }
             j += 8;
         }
@@ -187,22 +201,22 @@ void read_1bpp_pixel_data(int width, int height, RawImage& buffer,
 }
 
 void read_8bpp_pixel_data(int width, int height, RawImage& buffer,
-                          uint8_t* color_data, const ColourTable& colours,
+                          uint8_t* colour_data, const ColourTable& colours,
                           int stride) {
     int padding_size = stride - width;
     for(int i = height - 1; i >= 0; --i) {
         for(int j = 0; j < width; ++j) {
             uint8_t index = buffer.u8();
-            color_data[(i * width + j) * 3 + 0] = colours[index].R;
-            color_data[(i * width + j) * 3 + 1] = colours[index].G;
-            color_data[(i * width + j) * 3 + 2] = colours[index].B;
+            colour_data[(i * width + j) * 3 + 0] = colours[index].R;
+            colour_data[(i * width + j) * 3 + 1] = colours[index].G;
+            colour_data[(i * width + j) * 3 + 2] = colours[index].B;
         }
         buffer.skip(padding_size);
     }
 }
 
 void read_24bpp_pixel_data(int width, int height, RawImage& buffer,
-                           uint8_t* color_data, int stride) {
+                           uint8_t* colour_data, int stride) {
     int padding_size = stride - width * 3;
     for(int i = height - 1; i >= 0; --i) {
         for(int j = 0; j < width; ++j) {
@@ -210,9 +224,36 @@ void read_24bpp_pixel_data(int width, int height, RawImage& buffer,
             B = buffer.u8();
             G = buffer.u8();
             R = buffer.u8();
-            color_data[(i * width + j) * 3 + 0] = R;
-            color_data[(i * width + j) * 3 + 1] = G;
-            color_data[(i * width + j) * 3 + 2] = B;
+            colour_data[(i * width + j) * 3 + 0] = R;
+            colour_data[(i * width + j) * 3 + 1] = G;
+            colour_data[(i * width + j) * 3 + 2] = B;
+        }
+        buffer.skip(padding_size);
+    }
+}
+
+void read_16bpp_pixel_data(int width, int height, RawImage& buffer, uint8_t* colour_data,
+               int stride, uint32_t red_mask, uint32_t green_mask,
+               uint32_t blue_mask) {
+    int padding_size = stride - width * 2;
+    uint32_t red_max = (1 << std::popcount(red_mask)) - 1;
+    uint32_t green_max = (1 << std::popcount(green_mask)) - 1;
+    uint32_t blue_max = (1 << std::popcount(blue_mask)) - 1;
+    int red_field_shift = bitfield_shift_value(red_mask);
+    int green_field_shift = bitfield_shift_value(green_mask);
+    int blue_field_shift = bitfield_shift_value(blue_mask);
+    for(int i = height - 1; i >= 0; --i) {
+        for(int j = 0; j < width; ++j) {
+            uint32_t pixel = buffer.u16le();
+            uint32_t red_value = (pixel & red_mask) >> red_field_shift;
+            uint32_t green_value = (pixel & green_mask) >> green_field_shift;
+            uint32_t blue_value = (pixel & blue_mask) >> blue_field_shift;
+            colour_data[(i * width + j) * 3 + 0] =
+                normalise_to_u8(red_value, red_max);
+            colour_data[(i * width + j) * 3 + 1] =
+                normalise_to_u8(green_value, green_max);
+            colour_data[(i * width + j) * 3 + 2] =
+                normalise_to_u8(blue_value, blue_max);
         }
         buffer.skip(padding_size);
     }
@@ -234,16 +275,8 @@ void* read_bmp(const std::string& path, int& width, int& height,
 
 
     bitmap_header.read_header(buffer);
-    // if(bitmap_header.biBitCount != 8) {
-    //     std::cerr << "Only support 24bit pixel data\n";
-    //     std::terminate();
-    // }
     if(bitmap_header.biHeight < 1) {
         std::cerr << "Only support positive heights\n";
-        std::terminate();
-    }
-    if(bitmap_header.biCompression != BI_RGB) {
-        std::cerr << "Only supports uncompressed RGB images\n";
         std::terminate();
     }
 
@@ -259,6 +292,11 @@ void* read_bmp(const std::string& path, int& width, int& height,
     width = bitmap_header.biWidth;
     height = bitmap_header.biHeight;
     int stride = ((((width * bitmap_header.biBitCount) + 31) & ~31) >> 3);
+
+    uint32_t red_mask = bitmap_header.bRedMask;
+    uint32_t green_mask = bitmap_header.bGreenMask;
+    uint32_t blue_mask = bitmap_header.bBlueMask;
+    uint32_t alpha_mask = bitmap_header.bAlphaMask;
 
     colour_data = (uint8_t*) malloc((size_t) width * height * 3);
     if(colour_data == nullptr) {
@@ -279,9 +317,10 @@ void* read_bmp(const std::string& path, int& width, int& height,
             read_8bpp_pixel_data(width, height, buffer, colour_data, colours,
                                  stride);
             break;
-        case 16:
-            // unimplemented
-            break;
+        case 16: {
+            read_16bpp_pixel_data(width, height, buffer, colour_data, stride, red_mask,
+                      green_mask, blue_mask);
+        } break;
         case 24:
             read_24bpp_pixel_data(width, height, buffer, colour_data, stride);
             break;
