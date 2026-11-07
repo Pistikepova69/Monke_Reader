@@ -159,7 +159,7 @@ RGBQuad ColourTable::operator[](size_t i) const {
 }
 
 uint8_t normalise_to_u8(uint32_t value, uint32_t max_value) {
-    return value / max_value * 255;
+    return (255 * value) / max_value;
 }
 
 int bitfield_shift_value(uint32_t bitfield) {
@@ -358,10 +358,10 @@ void* read_bmp(const std::string& path, int& width, int& height,
             read_8bpp_pixel_data(width, height, buffer, colour_data, colours,
                                  stride);
             break;
-        case 16: {
+        case 16:
             read_16bpp_pixel_data(width, height, buffer, colour_data, stride,
                                   red_mask, green_mask, blue_mask);
-        } break;
+            break;
         case 24:
             read_24bpp_pixel_data(width, height, buffer, colour_data, stride);
             break;
