@@ -10,8 +10,7 @@
 - [x] V2, V3 header
 - [ ] Bitfield compression
 - [x] 16bpp
-- [ ] 32bpp (no 8+bitfield)
-- [ ] 8+bitfields
+- [x] 32bpp
 - [ ] Alpha
 - [ ] RLE4, RLE8 compression
 - [ ] Extra options

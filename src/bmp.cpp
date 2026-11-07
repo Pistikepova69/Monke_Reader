@@ -273,6 +273,33 @@ void read_16bpp_pixel_data(int width, int height, RawImage& buffer,
     }
 }
 
+void read_32bpp_pixel_data(int width, int height, RawImage& buffer,
+                           uint8_t* colour_data, int stride, uint32_t red_mask,
+                           uint32_t green_mask, uint32_t blue_mask) {
+    int padding_size = stride - width * 4;
+    uint32_t red_max = (1 << std::popcount(red_mask)) - 1;
+    uint32_t green_max = (1 << std::popcount(green_mask)) - 1;
+    uint32_t blue_max = (1 << std::popcount(blue_mask)) - 1;
+    int red_field_shift = bitfield_shift_value(red_mask);
+    int green_field_shift = bitfield_shift_value(green_mask);
+    int blue_field_shift = bitfield_shift_value(blue_mask);
+    for(int i = height - 1; i >= 0; --i) {
+        for(int j = 0; j < width; ++j) {
+            uint32_t pixel = buffer.u32le();
+            uint32_t red_value = (pixel & red_mask) >> red_field_shift;
+            uint32_t green_value = (pixel & green_mask) >> green_field_shift;
+            uint32_t blue_value = (pixel & blue_mask) >> blue_field_shift;
+            colour_data[(i * width + j) * 3 + 0] =
+                normalise_to_u8(red_value, red_max);
+            colour_data[(i * width + j) * 3 + 1] =
+                normalise_to_u8(green_value, green_max);
+            colour_data[(i * width + j) * 3 + 2] =
+                normalise_to_u8(blue_value, blue_max);
+        }
+        buffer.skip(padding_size);
+    }
+}
+
 void* read_bmp(const std::string& path, int& width, int& height,
                int& channels) {
     channels = 3;  // 4 if BI_ALPHABITFIELDS
@@ -339,7 +366,8 @@ void* read_bmp(const std::string& path, int& width, int& height,
             read_24bpp_pixel_data(width, height, buffer, colour_data, stride);
             break;
         case 32:
-            // unimplemented
+            read_32bpp_pixel_data(width, height, buffer, colour_data, stride,
+                                  red_mask, green_mask, blue_mask);
             break;
         default:
             std::cerr << "Invalid bitCount\n";
