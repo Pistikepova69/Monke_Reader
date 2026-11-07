@@ -42,7 +42,14 @@ struct BitmapInfoHeader {
 };
 
 struct BitmapHeader {
-    enum valid_versions : uint8_t { Info = 1, V4 = 4, V5 = 5, None = 0 };
+    enum valid_versions : uint8_t {
+        Info = 1,
+        V2 = 2,
+        V3 = 3,
+        V4 = 4,
+        V5 = 5,
+        None = 0
+    };
 
     valid_versions version = None;
 
@@ -59,10 +66,10 @@ struct BitmapHeader {
     uint32_t biClrUsed;       // colour table size
     uint32_t biClrImportant;  // irrelevant
     // info header until this point
-    uint32_t bRedMask;  // bitmasks to tead color data, only if bpp = (16,  32)
-    uint32_t bGreenMask;  // bitmasks to tead color data, onli if bpp = (16, 32)
-    uint32_t bBlueMask;   // bitmasks to tead color data, onli if bpp = (16, 32)
-    uint32_t bAlphaMask;  // bitmasks to tead color data, onli if bpp = (16, 32)
+    uint32_t bRedMask;  // bitmasks to read color data, only if bpp = (16,  32)
+    uint32_t bGreenMask;  // bitmasks to read color data, onli if bpp = (16, 32)
+    uint32_t bBlueMask;   // bitmasks to read color data, onli if bpp = (16, 32)
+    uint32_t bAlphaMask;  // bitmasks to read color data, onli if bpp = (16, 32)
     uint32_t bCSType;     //  0x73524742 or 0x57696E20
     uint8_t bEndpoints[36];  // not the real field type, skip, not relevant
     uint32_t bGammaRed;      // can be ignored
