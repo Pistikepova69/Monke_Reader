@@ -23,8 +23,10 @@ struct RawImage {
     int16_t i16be();
     int32_t i32le();
     int32_t i32be();
-    int64_t u64le() = delete;
-    int64_t u64be() = delete;
+    int64_t i64le() = delete;
+    int64_t i64be() = delete;
+    uint64_t u64le() = delete;
+    uint64_t u64be() = delete;
     void skip(size_t count);
 };
 
