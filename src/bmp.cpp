@@ -1,10 +1,10 @@
 #include "bmp.hpp"
 
 #include <bit>
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <iostream>
 
@@ -383,6 +383,101 @@ static void read_32bpp_pixel_data(int width, int height, RawImage& input_buffer,
                        32);
 }
 
+static void RLE_put(int& width, int& height, int& x, int& y,
+                    uint8_t* output_buffer, ColourTable& colours,
+                    uint8_t index) {
+    if(x >= width || y >= height) return;
+    output_buffer[((height - 1 - y) * width + x) * 3 + 0] = colours[index].R;
+    output_buffer[((height - 1 - y) * width + x) * 3 + 1] = colours[index].G;
+    output_buffer[((height - 1 - y) * width + x) * 3 + 2] = colours[index].B;
+}
+
+static void read_RLE8_data(int width, int height, RawImage& input_buffer,
+                           uint8_t* output_buffer, ColourTable& colours) {
+    uint8_t a, b;
+    int x = 0, y = 0;
+    bool run = true;
+    while(run) {
+        a = input_buffer.u8();
+        b = input_buffer.u8();
+        if(a == 0) {
+            switch(b) {
+                case 0:
+                    x = 0;
+                    y += 1;
+                    break;
+                case 1:
+                    run = false;
+                    break;
+                case 2:
+                    x += input_buffer.u8();
+                    y += input_buffer.u8();
+                    break;
+                default:
+                    for(int i = 0; i < b; ++i, ++x) {
+                        uint8_t index = input_buffer.u8();
+                        RLE_put(width, height, x, y, output_buffer, colours,
+                                index);
+                    }
+                    if(b & 1) {
+                        input_buffer.skip(1);
+                    }
+                    break;
+            }
+        }
+        else {
+            uint8_t index = b;
+            for(int i = 0; i < a; ++i, ++x) {
+                RLE_put(width, height, x, y, output_buffer, colours, index);
+            }
+        }
+    }
+}
+
+static void read_RLE4_data(int width, int height, RawImage& input_buffer,
+                           uint8_t* output_buffer, ColourTable& colours) {
+    uint8_t a, b;
+    int x = 0, y = 0;
+    bool run = true;
+    while(run) {
+        a = input_buffer.u8();
+        b = input_buffer.u8();
+        if(a == 0) {
+            switch(b) {
+                case 0:
+                    x = 0;
+                    y += 1;
+                    break;
+                case 1:
+                    run = false;
+                    break;
+                case 2:
+                    x += input_buffer.u8();
+                    y += input_buffer.u8();
+                    break;
+                default: {
+                    uint8_t byte = 0;
+                    for(int i = 0; i < b; ++i, ++x) {
+                        byte = (i & 1) ? byte : input_buffer.u8();
+                        RLE_put(width, height, x, y, output_buffer, colours,
+                                (i & 1) ? byte & 0x0F : (byte & 0xF0) >> 4);
+                    }
+                    if(((b + 1) / 2) & 1) {
+                        input_buffer.skip(1);
+                    }
+                } break;
+            }
+        }
+        else {
+            uint8_t byte = b;
+            for(int i = 0; i < a; ++i, ++x) {
+                RLE_put(width, height, x, y, output_buffer, colours,
+                        (i & 1) ? byte & 0x0F : (byte & 0xF0) >> 4);
+            }
+        }
+    }
+}
+
 void* read_bmp(const std::string& path, int& width, int& height,
                int& channels) {
     RawImage buffer(path);
@@ -426,6 +521,16 @@ void* read_bmp(const std::string& path, int& width, int& height,
     if(output_buffer == nullptr) {
         std::cerr << "Memory allocation failed\n";
         std::terminate();
+    }
+    memset(output_buffer, 0xFF, (size_t) width * height * channels);
+
+    if(bitmap_header.biCompression == BI_RLE8) {
+        read_RLE8_data(width, height, buffer, output_buffer, colours);
+        return output_buffer;
+    }
+    if(bitmap_header.biCompression == BI_RLE4) {
+        read_RLE4_data(width, height, buffer, output_buffer, colours);
+        return output_buffer;
     }
 
     switch(bitmap_header.biBitCount) {
