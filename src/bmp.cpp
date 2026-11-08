@@ -392,50 +392,12 @@ static void RLE_put(int& width, int& height, int& x, int& y,
     output_buffer[((height - 1 - y) * width + x) * 3 + 2] = colours[index].B;
 }
 
-static void read_RLE8_data(int width, int height, RawImage& input_buffer,
-                           uint8_t* output_buffer, ColourTable& colours) {
-    uint8_t a, b;
-    int x = 0, y = 0;
-    bool run = true;
-    while(run) {
-        a = input_buffer.u8();
-        b = input_buffer.u8();
-        if(a == 0) {
-            switch(b) {
-                case 0:
-                    x = 0;
-                    y += 1;
-                    break;
-                case 1:
-                    run = false;
-                    break;
-                case 2:
-                    x += input_buffer.u8();
-                    y += input_buffer.u8();
-                    break;
-                default:
-                    for(int i = 0; i < b; ++i, ++x) {
-                        uint8_t index = input_buffer.u8();
-                        RLE_put(width, height, x, y, output_buffer, colours,
-                                index);
-                    }
-                    if(b & 1) {
-                        input_buffer.skip(1);
-                    }
-                    break;
-            }
-        }
-        else {
-            uint8_t index = b;
-            for(int i = 0; i < a; ++i, ++x) {
-                RLE_put(width, height, x, y, output_buffer, colours, index);
-            }
-        }
+static void read_RLE_data(int width, int height, RawImage& input_buffer,
+                   uint8_t* output_buffer, ColourTable& colours, int bpp) {
+    if(bpp != 4 && bpp != 8) {
+        std::cerr << "Invalid bits per pixel\n";
+        std::terminate();
     }
-}
-
-static void read_RLE4_data(int width, int height, RawImage& input_buffer,
-                           uint8_t* output_buffer, ColourTable& colours) {
     uint8_t a, b;
     int x = 0, y = 0;
     bool run = true;
@@ -458,11 +420,14 @@ static void read_RLE4_data(int width, int height, RawImage& input_buffer,
                 default: {
                     uint8_t byte = 0;
                     for(int i = 0; i < b; ++i, ++x) {
-                        byte = (i & 1) ? byte : input_buffer.u8();
+                        byte = !(i & 1) || bpp == 8 ? input_buffer.u8() : byte;
                         RLE_put(width, height, x, y, output_buffer, colours,
-                                (i & 1) ? byte & 0x0F : (byte & 0xF0) >> 4);
+                                bpp == 8 ? byte
+                                         : ((i & 1) ? byte & 0x0F
+                                                    : (byte & 0xF0) >> 4));
                     }
-                    if(((b + 1) / 2) & 1) {
+                    if((bpp == 4 && (((b + 1) / 2) & 1)) ||
+                       (bpp == 8 && (b & 1))) {
                         input_buffer.skip(1);
                     }
                 } break;
@@ -472,10 +437,22 @@ static void read_RLE4_data(int width, int height, RawImage& input_buffer,
             uint8_t byte = b;
             for(int i = 0; i < a; ++i, ++x) {
                 RLE_put(width, height, x, y, output_buffer, colours,
-                        (i & 1) ? byte & 0x0F : (byte & 0xF0) >> 4);
+                        bpp == 8
+                            ? byte
+                            : ((i & 1) ? byte & 0x0F : (byte & 0xF0) >> 4));
             }
         }
     }
+}
+
+static void read_RLE8_data(int width, int height, RawImage& input_buffer,
+                           uint8_t* output_buffer, ColourTable& colours) {
+    read_RLE_data(width, height, input_buffer, output_buffer, colours, 8);
+}
+
+static void read_RLE4_data(int width, int height, RawImage& input_buffer,
+                           uint8_t* output_buffer, ColourTable& colours) {
+    read_RLE_data(width, height, input_buffer, output_buffer, colours, 4);
 }
 
 void* read_bmp(const std::string& path, int& width, int& height,
