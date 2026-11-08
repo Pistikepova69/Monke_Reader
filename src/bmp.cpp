@@ -7,6 +7,7 @@
 #include <cstring>
 #include <exception>
 #include <iostream>
+#include <algorithm>
 
 #include "raw_image.hpp"
 
@@ -206,11 +207,18 @@ bool BitmapHeader::validate_header() {
     if(biPlanes != 1) {
         return false;
     }
-    if(bCSType != 0x73'52'47'42 && bCSType != 0x57'69'6E'20) {
+    if((version == V4 || version == V5) &&
+       (bCSType != 0x73'52'47'42 && bCSType != 0x57'69'6E'20)) {
         return false;
     }
     if(biCompression != BI_BITFIELDS && biCompression != BI_ALPHABITFIELDS &&
        biCompression != BI_RGB && biHeight < 0) {
+        return false;
+    }
+    if(biCompression == BI_RLE4 && biBitCount != 4) {
+        return false;
+    }
+    if(biCompression == BI_RLE8 && biBitCount != 8) {
         return false;
     }
     if(biCompression != BI_BITFIELDS && biCompression != BI_ALPHABITFIELDS &&
@@ -230,7 +238,8 @@ bool BitmapHeader::validate_header() {
                !valid_mask(bBlueMask, 16)) {
                 return false;
             }
-            if ((bAlphaMask || biCompression == BI_ALPHABITFIELDS) && !valid_mask(bAlphaMask, 16)) {
+            if((bAlphaMask || biCompression == BI_ALPHABITFIELDS) &&
+               !valid_mask(bAlphaMask, 16)) {
                 return false;
             }
         }
@@ -239,7 +248,8 @@ bool BitmapHeader::validate_header() {
                !valid_mask(bBlueMask, 32)) {
                 return false;
             }
-            if ((bAlphaMask || biCompression == BI_ALPHABITFIELDS) && !valid_mask(bAlphaMask, 32)) {
+            if((bAlphaMask || biCompression == BI_ALPHABITFIELDS) &&
+               !valid_mask(bAlphaMask, 32)) {
                 return false;
             }
         }
@@ -510,6 +520,13 @@ static void read_RLE4_data(int width, int height, RawImage& input_buffer,
     read_RLE_data(width, height, input_buffer, output_buffer, colours, 4);
 }
 
+static void flip_rows(uint8_t* data, int width, int height, int channels) {
+    size_t row = (size_t) width * channels;
+    for(size_t y = 0; y < (size_t) height / 2; ++y)
+        std::swap_ranges(data + y * row, data + (y + 1) * row,
+                         data + ((size_t) height - 1 - y) * row);
+}
+
 void* read_bmp(const std::string& path, int& width, int& height,
                int& channels) {
     RawImage buffer(path);
@@ -524,13 +541,15 @@ void* read_bmp(const std::string& path, int& width, int& height,
 
 
     bitmap_header.read_header(buffer);
-    if (!file_header.validate_header()) {
+    if(!bitmap_header.validate_header()) {
         std::cerr << "Invalid or unsupported file\n";
         std::terminate();
     }
-    if(bitmap_header.biHeight < 1) {
-        std::cerr << "Only support positive heights\n";
-        std::terminate();
+
+    bool requires_flip = false;
+    if(bitmap_header.biHeight < 0) {
+        requires_flip = true;
+        bitmap_header.biHeight = -bitmap_header.biHeight;
     }
 
 
@@ -599,6 +618,10 @@ void* read_bmp(const std::string& path, int& width, int& height,
             std::cerr << "Invalid bitCount\n";
             std::terminate();
             break;
+    }
+
+    if(requires_flip) {
+        flip_rows(output_buffer, width, height, channels);
     }
 
     return output_buffer;
