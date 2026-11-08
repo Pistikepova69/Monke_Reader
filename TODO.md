@@ -2,7 +2,7 @@
 
 ## BMP Reader
 
-- [ ] Negative height
+- [x] Negative height
 - [x] Colour table
 - [x] 1bpp
 - [x] 4bpp
@@ -14,3 +14,5 @@
 - [x] Alpha
 - [x] RLE4, RLE8 compression
 - [x] Basic validation
+
+## PNG Reader
