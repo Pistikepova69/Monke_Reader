@@ -13,5 +13,4 @@
 - [x] 32bpp
 - [x] Alpha
 - [x] RLE4, RLE8 compression
-- [ ] Basic validation
-- [ ] Extra options
+- [x] Basic validation

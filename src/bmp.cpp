@@ -73,6 +73,7 @@ struct BitmapHeader {
     uint32_t bProfileSize = 0;  // irrelevant
     uint32_t bReserved = 0;     // irrelevant (0!)
     void read_header(RawImage& buffer);
+    bool validate_header();
 };
 
 struct RGBColour {
@@ -191,6 +192,59 @@ void BitmapHeader::read_header(RawImage& input_buffer) {
     if(biBitCount < 16 && biClrUsed == 0) {
         biClrUsed = 1 << biBitCount;
     }
+}
+
+static bool valid_mask(uint32_t m, int bpp) {
+    if(m == 0) return false;  // R, G, B must be present
+    uint32_t v = m >> std::countr_zero(m);
+    if(v & (v + 1)) return false;              // bits must be contiguous
+    if(bpp == 16 && m > 0xFFFF) return false;  // must fit in the pixel
+    return true;
+}
+
+bool BitmapHeader::validate_header() {
+    if(biPlanes != 1) {
+        return false;
+    }
+    if(bCSType != 0x73'52'47'42 && bCSType != 0x57'69'6E'20) {
+        return false;
+    }
+    if(biCompression != BI_BITFIELDS && biCompression != BI_ALPHABITFIELDS &&
+       biCompression != BI_RGB && biHeight < 0) {
+        return false;
+    }
+    if(biCompression != BI_BITFIELDS && biCompression != BI_ALPHABITFIELDS &&
+       biCompression != BI_RGB && biCompression != BI_RLE4 &&
+       biCompression != BI_RLE8) {
+        return false;
+    }
+    if(biBitCount != 32 && biClrUsed > 1 << biBitCount) {
+        return false;
+    }
+    if((biCompression == BI_BITFIELDS || biCompression == BI_ALPHABITFIELDS)) {
+        if(biBitCount != 16 && biBitCount != 32) {
+            return false;
+        }
+        if(biBitCount == 16) {
+            if(!valid_mask(bRedMask, 16) || !valid_mask(bGreenMask, 16) ||
+               !valid_mask(bBlueMask, 16)) {
+                return false;
+            }
+            if ((bAlphaMask || biCompression == BI_ALPHABITFIELDS) && !valid_mask(bAlphaMask, 16)) {
+                return false;
+            }
+        }
+        if(biBitCount == 32) {
+            if(!valid_mask(bRedMask, 32) || !valid_mask(bGreenMask, 32) ||
+               !valid_mask(bBlueMask, 32)) {
+                return false;
+            }
+            if ((bAlphaMask || biCompression == BI_ALPHABITFIELDS) && !valid_mask(bAlphaMask, 32)) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 void ColourTable::read_table(RawImage& input_buffer, int colour_count) {
@@ -393,7 +447,8 @@ static void RLE_put(int& width, int& height, int& x, int& y,
 }
 
 static void read_RLE_data(int width, int height, RawImage& input_buffer,
-                   uint8_t* output_buffer, ColourTable& colours, int bpp) {
+                          uint8_t* output_buffer, ColourTable& colours,
+                          int bpp) {
     if(bpp != 4 && bpp != 8) {
         std::cerr << "Invalid bits per pixel\n";
         std::terminate();
@@ -469,6 +524,10 @@ void* read_bmp(const std::string& path, int& width, int& height,
 
 
     bitmap_header.read_header(buffer);
+    if (!file_header.validate_header()) {
+        std::cerr << "Invalid or unsupported file\n";
+        std::terminate();
+    }
     if(bitmap_header.biHeight < 1) {
         std::cerr << "Only support positive heights\n";
         std::terminate();
